@@ -93,6 +93,7 @@ public class SnakeGame {
             shader.use();
             synchronized (snake.getPieces()) {
                 snake.getPieces().forEach(snakePiece -> {
+                    if (snakePiece.vao == null) return;
                     snakePiece.vao.bind();
                     shader.setVec2("objectOffset", snakePiece.position);
                     shader.setVec3("objectColor", snakePiece.color);
@@ -141,11 +142,13 @@ public class SnakeGame {
 
                 var snakePiece = new SnakePiece();
                 snakePiece.position = snake.getPieces().get(snake.getPieces().size() - 1).position;
-                snakePiece.color = new Color(Math.min(score * 5, 255), Math.max(255 - (score * 10), 0), Math.min(score * 10, 255));
+                snakePiece.color = new Color(Math.max(Math.min((score - 20) % 50 * 5, 255), 0), Math.max(255 - (score % 50 * 10), 0), Math.min(score % 50 * 10, 255));
                 synchronized (renderTasks) {
                     renderTasks.add(() -> snakePiece.vao = Utils.createBoxVAO());
                 }
-                snake.getPieces().add(snakePiece);
+                synchronized (snake.getPieces()) {
+                    snake.getPieces().add(snakePiece);
+                }
                 cherry.position = new Vec2(random.nextInt(21) - 10, random.nextInt(21) - 10);
             }
 
