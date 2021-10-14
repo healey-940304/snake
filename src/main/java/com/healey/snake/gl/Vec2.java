@@ -63,4 +63,8 @@ public class Vec2 {
                 ", y=" + y +
                 '}';
     }
+
+    public Vec2 multiply(float f) {
+        return new Vec2(x * f, y * f);
+    }
 }

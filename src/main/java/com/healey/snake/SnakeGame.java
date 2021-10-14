@@ -1,7 +1,6 @@
 package com.healey.snake;
 
 import com.healey.snake.gl.Shader;
-import com.healey.snake.gl.VAO;
 import com.healey.snake.gl.Vec2;
 import com.healey.snake.util.Utils;
 
@@ -20,9 +19,11 @@ public class SnakeGame {
 
     private final Queue<Runnable> renderTasks = new LinkedList<>();
 
+    private float zoom = 10.5f;
     private final Snake snake;
     private final SnakePiece cherry;
     private int score;
+    private int deaths;
     private volatile boolean inGame;
 
     public SnakeGame() {
@@ -69,6 +70,7 @@ public class SnakeGame {
         });
 
         inGame = true;
+        boolean spaceKey = false;
         long lastFrame = System.currentTimeMillis();
         while (!glfwWindowShouldClose(window)) {
             long thisFrame = System.currentTimeMillis();
@@ -78,6 +80,10 @@ public class SnakeGame {
             else if (snake.directionLastMoved != Direction.UP && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) snake.direction = Direction.DOWN;
             else if (snake.directionLastMoved != Direction.RIGHT && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) snake.direction = Direction.LEFT;
             else if (snake.directionLastMoved != Direction.LEFT && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) snake.direction = Direction.RIGHT;
+            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                inGame = !inGame;
+                spaceKey = true;
+            } else if (spaceKey && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) spaceKey = false;
 
             synchronized (renderTasks) {
                 if (!renderTasks.isEmpty())
@@ -91,6 +97,8 @@ public class SnakeGame {
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
             shader.use();
+            shader.setFloat("zoom", zoom);
+
             synchronized (snake.getPieces()) {
                 snake.getPieces().forEach(snakePiece -> {
                     if (snakePiece.vao == null) return;
@@ -133,23 +141,76 @@ public class SnakeGame {
             if (snake.position.y > 10) snake.position = new Vec2(snake.position.x, -10.0f);
             if (snake.position.y < -10) snake.position = new Vec2(snake.position.x, 10.0f);
             if (snake.getPieces().stream().filter(snakePiece -> snakePiece.position.equals(snake.position)).count() > 1) {
-                System.exit(1);
-                // TODO: 10/8/2021 game over
+                for (int i = snake.getPieces().size() - 1; i >= -5; i--) {
+                    var pieces = snake.getPieces();
+                    synchronized (pieces) {
+                        if (i >= 0) pieces.get(i).color = Color.RED;
+                        if (i + 5 < pieces.size()) pieces.remove(i + 5);
+                    }
+
+                    try {
+                        Thread.sleep(1000 / score * 20);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                while (zoom > 2.0f) {
+                    zoom -= 0.125f;
+                    cherry.position = cherry.position.multiply(0.9f);
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                snake.position = new Vec2(-3.0f, 0.0f);
+                snake.color = Color.GREEN;
+                snake.getPieces().add(snake);
+                while (snake.position.x < 5.0f) {
+                    snake.position = snake.position.add(Vec2.RIGHT);
+                    if (snake.position.x == 0) {
+                        var piece = new SnakePiece();
+                        piece.position = new Vec2();
+                        synchronized (renderTasks) {
+                            renderTasks.add(() -> piece.vao = Utils.createBoxVAO());
+                        }
+                    }
+                }
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                snake.getPieces().clear();
+
+                deaths++;
+                snake.color = Color.RED;
+                snake.getPieces().add(snake);
+                snake.position = new Vec2();
+                score = 0;
+                zoom = 10.5f;
+                cherry.position = new Vec2(random.nextInt(21) - 10, random.nextInt(21) - 10);
+                inGame = true;
             }
             if (snake.position.equals(cherry.position)) {
-
-                score++;
-
-                var snakePiece = new SnakePiece();
-                snakePiece.position = snake.getPieces().get(snake.getPieces().size() - 1).position;
-                snakePiece.color = new Color(Math.max(Math.min((score - 20) % 50 * 5, 255), 0), Math.max(255 - (score % 50 * 10), 0), Math.min(score % 50 * 10, 255));
-                synchronized (renderTasks) {
-                    renderTasks.add(() -> snakePiece.vao = Utils.createBoxVAO());
+                for (int i = 0; i < 20; i++) {
+                    score++;
+                    var snakePiece = new SnakePiece();
+                    snakePiece.position = snake.getPieces().get(snake.getPieces().size() - 1).position;
+                    if (score < deaths) snakePiece.color = Color.RED;
+                    else snakePiece.color = new Color(Math.max(Math.min((score - 20) % 50 * 5, 255), 0), Math.max(255 - (score % 50 * 10), 0), Math.min(score % 50 * 10, 255));
+                    synchronized (renderTasks) {
+                        renderTasks.add(() -> snakePiece.vao = Utils.createBoxVAO());
+                    }
+                    synchronized (snake.getPieces()) {
+                        snake.getPieces().add(snakePiece);
+                    }
+                    cherry.position = new Vec2(random.nextInt(21) - 10, random.nextInt(21) - 10);
                 }
-                synchronized (snake.getPieces()) {
-                    snake.getPieces().add(snakePiece);
-                }
-                cherry.position = new Vec2(random.nextInt(21) - 10, random.nextInt(21) - 10);
             }
 
             while (System.currentTimeMillis() - thisMove < 100) Thread.onSpinWait();

@@ -56,4 +56,8 @@ public class Shader {
     public void setVec3(String name, Color color) {
         glUniform3f(glGetUniformLocation(id, name), color.getRed() / 255.0f, color.getGreen() / 255.0f, color.getBlue() / 255.0f);
     }
+
+    public void setFloat(String name, float f) {
+        glUniform1f(glGetUniformLocation(id, name), f);
+    }
 }
